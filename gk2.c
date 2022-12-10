@@ -4,7 +4,6 @@
 #define ALPHA_BETA_FUNC_NAME Alpha_Beta
 
 //READ HERE:
-//今のところ反則手(関数is_Banned)と千日手の処理(global変数Num_Sen_nichi_teを更新する処理)が未実装です。
 //下記のglobal変数群を使いながら、次の関数に渡して最適手の計算を行うことを考えています。
 //引数sideは0の時先手(盤の手前側)の手番、0の時後手(盤の奥側)の手番
 //返り値はユーザの入力と同様、"2A3B"などの文字列
@@ -33,13 +32,41 @@ char board[5][5][2]={
 char possessed[2][12]={{'x','x','x','x','x','x','x','x','x','x','x','x'},
     {'x','x','x','x','x','x','x','x','x','x','x','x'}
 };
+/*char board[5][5][2]={
+    {{'S', 'U'},{'x', 'x'},{'x','x'},{'x', 'x'},{'A', 'U'}},
+    {{'x', 'x'},{'x', 'x'},{'x', 'x'},{'H', 'D'},{'x', 'x'}},
+    {{'O', 'U'},{'x', 'x'},{'x', 'x'},{'H', 'D'},{'x', 'x'}},
+    {{'x', 'x'},{'x', 'x'},{'G', 'D'},{'x', 'x'},{'x', 'x'}},
+    {{'K', 'D'},{'T', 'D'},{'S','D'},{'x','x'},{'K','U'}}
+};
+char possessed[2][12]={{'F','x','x','x','x','x','x','x','x','x','x','x'},
+    {'A','x','x','x','x','x','x','x','x','x','x','x'}
+}; for_debug*/
 //これまでの手数(先手後手合わせて)
 int Num_Moves=0;
-//千日手の繰り返し回数(未実装)
-int Num_Sen_nichi_te=0;
 
 
+typedef struct AVL_TREE_node{
+    char key[6][5][2];
+    int value;
+    int height, balance;
+    struct AVL_TREE_node *left, *right;
+} AVL_TREE_Node;
+//プロトタイプ宣言
+int isOte(int side);
+int is_Movable(char koma_name, int sy, int sx, int gy, int gx, int side);
+void AVL_TREE_init_node(AVL_TREE_Node* n);
+void AVL_TREE_bal_cal(AVL_TREE_Node* n);
+void AVL_TREE_set_data(AVL_TREE_Node* n, char key[6][5][2], int value);
+int AVL_TREE_search(AVL_TREE_Node* n, char key[6][5][2]);
+AVL_TREE_Node* AVL_TREE_insert(AVL_TREE_Node* n, char key[6][5][2], int value, int balancing);
+AVL_TREE_Node* AVL_TREE_balancize(AVL_TREE_Node* n);
+AVL_TREE_Node* AVL_TREE_rotate(AVL_TREE_Node* n, int isRight);
+int Check_If_Permitted_Move(char* input, int side);
+int isTsumi(int side);
 
+//これまで通った盤面を保持するためのAVL木
+AVL_TREE_Node* Board_Memorizing_AVL_Tree[2]={NULL, NULL};
 
 
 //盤面表示用にアルファベット一文字(HやFなど)の表記をよく見る漢字一文字(歩や角など)の「文字列」に変換します(漢字は一般に多bitなのでcharでは返せない)
@@ -85,6 +112,50 @@ char Process_Nari(char before_Nari){
     }
 }
 
+//千日手の処理のために現在の盤面が何回出たかを返す。
+//update==1のときはその値を更新し、0のときは更新しない。
+int Process_Sen_Nichi_Te(int update, int side){
+    char board_possessed_merged[6][5][2];
+    int i, j;
+    for(i=0; i<5; i++) for(j=0; j<5; j++){
+        board_possessed_merged[i][j][0]=board[i][j][0];
+        board_possessed_merged[i][j][1]=board[i][j][1];
+    }
+    for(i=0; i<2; i++) for(j=0; j<5; j++){
+        board_possessed_merged[5][j][i]='0';
+        board_possessed_merged[5][j][i]='0';
+    }
+    for(i=0; i<2; i++) for(j=0; j<12; j++){
+        switch(possessed[i][j]){
+            case 'F':
+                board_possessed_merged[5][0][i]++;
+                break;
+            case 'K':
+                board_possessed_merged[5][1][i]++;
+                break;
+            case 'S':
+                board_possessed_merged[5][2][i]++;
+                break;
+            case 'A':
+                board_possessed_merged[5][3][i]++;
+                break;
+            case 'H':
+                board_possessed_merged[5][4][i]++;
+                break;
+            default:
+                break;
+        }
+    }
+
+    int Current_Num=AVL_TREE_search(Board_Memorizing_AVL_Tree[side], board_possessed_merged);
+    if(Current_Num==-1) Current_Num=0;
+    if(update){
+        Current_Num++;
+        Board_Memorizing_AVL_Tree[side]=AVL_TREE_insert(Board_Memorizing_AVL_Tree[side], board_possessed_merged, Current_Num,1);
+    }
+    return Current_Num;
+}
+
 //駒をなっていない状態に戻す
 char Inverse_Process_Nari(char after_Nari){
     switch(after_Nari){
@@ -97,7 +168,7 @@ char Inverse_Process_Nari(char after_Nari){
 }
 
 void Display_Board(int side){
-    printf("\n\n盤面:\n\n持ち駒(後手):");
+    printf("\n\n盤面:同じ盤面は%d回目\n\n後手: %s %s %s\n持ち駒(後手):", Process_Sen_Nichi_Te(0,side),(isOte(1) ? "王手している" : "王手していない") , (isOte(0) ? "王手されている" : "王手されていない"), (side ? (isTsumi(side) ? "詰んでいる" : "詰んでいない") : ""));
     int i=0;
     for(i=0; i<12; i++){
         if(possessed[1][i]=='x'){
@@ -125,7 +196,7 @@ void Display_Board(int side){
     printf("------------------------------------\n持ち駒(先手):");
     for(i=0; i<12; i++){
         if(possessed[0][i]=='x'){
-            printf("\n\n");
+            printf("\n先手: %s　%s %s\n\n", (isOte(0) ? "王手している" : "王手していない") , (isOte(1) ? "王手されている" : "王手されていない"), (side ? "" : (isTsumi(side) ? "詰んでいる" : "詰んでいない")));
             break;
         }
         else printf("%s　", Convert2Kanji(possessed[0][i]));
@@ -146,9 +217,316 @@ int intended_Nari(char* instruction){
     else return 0;
 }
 
-//反則手かどうかを判定する関数(未実装)
-int is_Banned(char* input){
+//side側が王手をしているかを判定する関数
+int isOte(int side){
+    int i, j, gx, gy;
+    
+    for(i=0; i<5; i++){
+        for(j=0; j<5; j++){
+            if(side==0 && board[i][j][0]=='G'){
+                gx=j; gy=i;
+                break;
+            }
+            if(side==1 && board[i][j][0]=='O'){
+                gx=j; gy=i;
+                break;
+            }
+        }
+    }
+    
+    for(i=0; i<5; i++){
+        for(j=0; j<5; j++){
+            
+            //for_debug
+            //if(i==3 && j==2){
+            //    printf("\nFOR_DEBUG in isOte()$ %d %c %d %d %d %d %d", is_Movable(board[i][j][0], i, j, gy, gx, side), board[i][j][0], i, j, gy, gx, side);
+            //}
+            
+            if(side==0 && board[i][j][1]=='U'){
+                if(is_Movable(board[i][j][0], i, j, gy, gx, side)) return 1;
+            }
+            if(side==1 && board[i][j][1]=='D'){
+                if(is_Movable(board[i][j][0], i, j, gy, gx, side)) return 1;
+            }
+        }
+    }
     return 0;
+}
+
+//side側が打ったコマが二歩かどうかを判定する関数
+int is_Nifu(char* input, int side){
+    int i, num=0;
+    int column_num=input[1]-'A';
+    for(i=0; i<5; i++){
+        if(side==0 && board[i][column_num][0]=='F' && board[i][column_num][1]=='U') return 1;
+        if(side==1 && board[i][column_num][0]=='F' && board[i][column_num][1]=='D') return 1;
+    }
+    return 0;
+}
+
+//それ以上動けないようにこまをおいた場合
+int Unmovable_Koma_Put(char* input, int side){
+    if(side==0 && input[0]=='5') return 1;
+    if(side==1 && input[0]=='1') return 1;
+    return 0;
+}
+
+//それ以上動けないようにこまを動かした場合
+int Unmovable_Koma_Moved(char* input, int side){
+    if(side==0 && input[2]=='5') return 1;
+    if(side==1 && input[2]=='1') return 1;
+    return 0;
+}
+
+
+
+//side側が詰んでいるかを判定する関数
+int isTsumi(int side){
+    int Remove_Sen_Nichite=1; //千日手により負ける場合を詰みとみなすか
+    if(!isOte(1-side)) return 0;
+    int i, j, Tsumiflag=1;
+    //駒を動かす場合
+    for(i=0; i<5; i++) for(j=0; j<5; j++){
+        if(side==0 && board[i][j][1]!='U') continue;
+        if(side==1 && board[i][j][1]!='D') continue;
+        int k, l;
+        for(k=0; k<5; k++) for(l=0; l<5; l++){
+            if(!is_Movable(board[i][j][0], i, j, k, l, side)) continue;
+            char order[10]="5A5A";
+            order[0]-=i;
+            order[1]+=j;
+            order[2]-=k;
+            order[3]+=l;
+            //成らない場合
+            if(Check_If_Permitted_Move(order, side)){
+                int koma_got=-1, Nari_got=0;
+                if(board[k][l][0]!='x'){
+                    int m;
+                    if(isNari(board[k][l][0])){
+                        board[k][l][0]=Inverse_Process_Nari(board[k][l][0]);
+                        Nari_got=1;
+                    }
+                    for(m=0; m<12; m++){
+                        if(possessed[side][m]=='x'){
+                            possessed[side][m]=board[k][l][0];
+                            koma_got=m;
+                            break;
+                        }
+                    }
+                }
+                board[k][l][0]=board[i][j][0];
+                board[k][l][1]=board[i][j][1];
+                board[i][j][0]='x';
+                board[i][j][1]='x';
+
+                if(!isOte(1-side)) Tsumiflag=0;
+                
+                //for_debug
+                //if(!Tsumiflag){
+                //    printf("FOR_DEBUG in isTsumi:%d\n", isOte(1-side));
+                //    Display_Board(side);
+                //}
+                
+                board[i][j][0]=board[k][l][0];
+                board[i][j][1]=board[k][l][1];
+                if(koma_got==-1){
+                    board[k][l][0]='x';
+                    board[k][l][1]='x';
+                }
+                else{
+                    board[k][l][0]=possessed[side][koma_got];
+                    if(Nari_got) board[k][l][0]=Process_Nari(board[k][l][0]);
+                    board[k][l][1]=(side ? 'U' : 'D');
+                    possessed[side][koma_got]='x';
+                }
+                
+                if(!Tsumiflag){
+                    if(Process_Sen_Nichi_Te(0,1-side)+1>=4){
+                        //とった手が千日手
+                        if(Remove_Sen_Nichite){
+                            //自分が先手なら千日手で負けてしまう
+                            if(side==0){Tsumiflag=0; continue;}
+                        }
+                        //王手千日手
+                        if(isOte(side)){Tsumiflag=0; continue;}
+                    }
+                    return 0;
+                }
+            }
+            //成る場合
+            order[4]='N';
+            if(Check_If_Permitted_Move(order, side)){
+                int koma_got=-1, Nari_got=0;
+                if(board[k][l][0]!='x'){
+                    int m;
+                    if(isNari(board[k][l][0])){
+                        board[k][l][0]=Inverse_Process_Nari(board[k][l][0]);
+                        Nari_got=1;
+                    }
+                    for(m=0; m<12; m++){
+                        if(possessed[side][m]=='x'){
+                            possessed[side][m]=board[k][l][0];
+                            koma_got=m;
+                            break;
+                        }
+                    }
+                }
+                board[k][l][0]=Process_Nari(board[i][j][0]);
+                board[k][l][1]=board[i][j][1];
+                board[i][j][0]='x';
+                board[i][j][1]='x';
+                
+                if(!isOte(1-side)) Tsumiflag=0;
+                
+                board[i][j][0]=Inverse_Process_Nari(board[k][l][0]);
+                board[i][j][1]=board[k][l][1];
+                if(koma_got==-1){
+                    board[k][l][0]='x';
+                    board[k][l][1]='x';
+                }
+                else{
+                    board[k][l][0]=possessed[side][koma_got];
+                    if(Nari_got) board[k][l][0]=Process_Nari(board[k][l][0]);
+                    board[k][l][1]=(side ? 'U' : 'D');
+                    possessed[side][koma_got]='x';
+                }
+                if(!Tsumiflag){
+                    if(Process_Sen_Nichi_Te(0,1-side)+1>=4){
+                        //とった手が千日手
+                        if(Remove_Sen_Nichite){
+                            //自分が先手なら千日手で負けてしまう
+                            if(side==0){Tsumiflag=0; continue;}
+                        }
+                        //王手千日手
+                        if(isOte(side)){Tsumiflag=0; continue;}
+                    }
+                    return 0;
+                }
+            }
+        }
+    }
+    //駒を置く場合
+    int IfPossess[5]={-1,-1,-1,-1,-1};
+    int Break_Flag=-1;
+    for(j=0; j<12; j++){
+        switch(possessed[side][j]){
+            case 'F':
+                IfPossess[4]=j;
+                break;
+            case 'K':
+                IfPossess[3]=j;
+                break;
+            case 'S':
+                IfPossess[2]=j;
+                break;
+            case 'A':
+                IfPossess[1]=j;
+                break;
+            case 'H':
+                IfPossess[0]=j;
+                break;
+            default:
+                Break_Flag=j;
+                break;
+        }
+        if(Break_Flag!=-1) break;
+    }
+    int k;
+    for(k=0; k<5; k++){
+        if(IfPossess[k]==-1) continue;
+        for(i=0; i<5; i++) for(j=0; j<5; j++){
+            char order[10]="5A  ";
+            order[0]-=i;
+            order[1]+=j;
+            char koma_name='x';
+            switch(k){
+                case 0:
+                    order[3]='H'; order[4]='I'; koma_name='H'; break;
+                case 1:
+                    order[3]='K'; order[4]='K'; koma_name='A'; break;
+                case 2:
+                    order[3]='G'; order[4]='I'; koma_name='S'; break;
+                case 3:
+                    order[3]='K'; order[4]='I'; koma_name='K'; break;
+                case 4:
+                    order[3]='F'; order[4]='U'; koma_name='F'; break;
+                default: break;
+            }
+            if(Check_If_Permitted_Move(order, side)){
+                board[i][j][0]=koma_name;
+                board[i][j][1]=(side ? 'D' : 'U');
+                if(Break_Flag>1 && IfPossess[k]+1<Break_Flag){
+                    possessed[side][IfPossess[k]]=possessed[side][Break_Flag-1];
+                    possessed[side][Break_Flag-1]='x';
+                }
+                else possessed[side][IfPossess[k]]='x';
+                if(koma_name=='F'){
+                    if(isTsumi(1-side)){
+                        //打ち歩詰めの場合
+                        continue;
+                    }
+                }
+                
+                if(isOte(1-side)) Tsumiflag=0;
+                
+                if(Break_Flag>1 && IfPossess[k]+1<Break_Flag){
+                    possessed[side][Break_Flag-1]=possessed[side][IfPossess[k]];
+                    possessed[side][IfPossess[k]]=board[i][j][0];
+                }
+                else possessed[side][IfPossess[k]]=board[i][j][0];
+                board[i][j][0]='x';
+                board[i][j][1]='x';
+                
+                if(!Tsumiflag){
+                    if(Process_Sen_Nichi_Te(0,1-side)+1>=4){
+                        //とった手が千日手
+                        if(Remove_Sen_Nichite){
+                            //自分が先手なら千日手で負けてしまう
+                            if(side==0){Tsumiflag=0; continue;}
+                        }
+                        //王手千日手
+                        if(isOte(side)){Tsumiflag=0; continue;}
+                    }
+                    return 0;
+                }
+            }
+        }
+    }
+    return 1;
+}
+
+//side側が歩詰めしようとしているかを判定する関数
+int isFudume(char* input, int side){
+    int j, Fu_index, max_index, Flag=0;
+    for(j=0; j<12; j++){
+        if(possessed[side][j]=='F'){
+            Fu_index=j;
+        }
+        if(possessed[side][j]=='x'){
+            max_index=j;
+            break;
+        }
+    }
+    if(max_index>1 && Fu_index+1<max_index){
+        possessed[side][Fu_index]=possessed[side][max_index-1];
+        possessed[side][max_index-1]='x';
+    }
+    else possessed[side][Fu_index]='x';
+    int x=4-input[0]+'1', y=input[1]-'A';
+    board[x][y][0]='F';
+    board[x][y][1]=(side ? 'D' : 'U');
+    
+    if(isTsumi(1-side)) Flag=1;
+    
+    if(max_index>1 && Fu_index+1<max_index){
+        possessed[side][max_index-1]=possessed[side][Fu_index];
+        possessed[side][Fu_index]='F';
+    }
+    else possessed[side][Fu_index]='F';
+    board[x][y][0]='x';
+    board[x][y][1]='x';
+    
+    return Flag;
 }
 
 //駒が(動きとして)動けるかどうかを判定する関数
@@ -223,12 +601,12 @@ int is_Movable(char koma_name, int sy, int sx, int gy, int gx, int side){
             if(sx-gx!=sy-gy && sx-gx!=gy-sy) return 0;
             if(side==0 && board[gy][gx][1]=='U') return 0;
             if(side==1 && board[gy][gx][1]=='D') return 0;
-            if(sx-gx!=sy-gy){
-                int X=(sx>gx ? gx : sx)+1, Y=(sy>gy ? gy : sy)+1, MaximX=(sx<gx ? gx : sx)+1;
+            if(sx-gx==sy-gy){
+                int X=(sx>gx ? gx : sx)+1, Y=(sy>gy ? gy : sy)+1, MaximX=(sx<gx ? gx : sx);
                 for(; X<MaximX; X++, Y++) if(board[Y][X][0]!='x') return 0;
             }
             else{
-                int X=(sx>gx ? gx : sx)+1, Y=(sy<gy ? gy : sy)-1, MaximX=(sx<gx ? gx : sx)+1;
+                int X=(sx>gx ? gx : sx)+1, Y=(sy<gy ? gy : sy)-1, MaximX=(sx<gx ? gx : sx);
                 for(; X<MaximX; X++, Y--) if(board[Y][X][0]!='x') return 0;
             }
             break;
@@ -240,9 +618,9 @@ int is_Movable(char koma_name, int sy, int sx, int gy, int gx, int side){
     return 1;
 }
 
-//命令列がゲームとして許容されるかを判定する関数(反則手の部分が未完成なので若干不十分な挙動)
+//命令列がゲームとして許容されるかを判定する関数(王手千日手と歩詰めのみはmain関数中及びPlayer_Process/AI_Processで判定しているため判定されない)
 int Check_If_Permitted_Move(char* input, int side){
-    if(is_Put_Instruction(input)){
+    if(is_Put_Instruction(input)){ //打つ場合
         char koma_side, koma_name;
         if(input[2]=='H' && input[3]=='I') koma_name='H';
         else if(input[2]=='K' && input[3]=='K') koma_name='A';
@@ -263,7 +641,10 @@ int Check_If_Permitted_Move(char* input, int side){
             return 0;
         }
         if(board[4-input[0]+'1'][input[1]-'A'][0]=='x'){
-            if(is_Banned(input)) return 0;
+            if(koma_name=='F'){
+                if(is_Nifu(input, side)) return 0;
+                if(Unmovable_Koma_Put(input, side)) return 0;
+            }
             else return 1;
         }
         else return 0;
@@ -271,7 +652,7 @@ int Check_If_Permitted_Move(char* input, int side){
     else{
         if((side==0 && board[4-input[0]+'1'][input[1]-'A'][1]=='U') || (side==1 && board[4-input[0]+'1'][input[1]-'A'][1]=='D') ){
             if(is_Movable(board[4-input[0]+'1'][input[1]-'A'][0], 4-input[0]+'1', input[1]-'A', 4-input[2]+'1', input[3]-'A', side)){
-                if(is_Banned(input)) return 0; //反則手
+                ;
             }
             else return 0; //駒としてそこに動けない場合
         }
@@ -279,11 +660,16 @@ int Check_If_Permitted_Move(char* input, int side){
         if(intended_Nari(input)){
             int koma_name=board[4-input[0]+'1'][input[1]-'A'][0];
             if(Process_Nari(koma_name)=='?') return 0;
-            if(side==1 && 4-input[0]+'1'<3 && 4-input[2]+'1'<3) return 0;
-            if(side==0 && 4-input[0]+'1'>1 && 4-input[2]+'1'>1) return 0;
+            if(side==1 && 4-input[0]+'1'<4 && 4-input[2]+'1'<4) return 0;
+            if(side==0 && 4-input[0]+'1'>0 && 4-input[2]+'1'>0) return 0;
+        }
+        else{
+            if(board[4-input[0]+'1'][input[1]-'A'][0]=='F')
+                if(Unmovable_Koma_Moved(input, side)) return 0;
         }
         return 1;
     }
+    return -1;//for debug(ここは通らないはず)
 }
 
 //ユーザの手番の処理
@@ -291,6 +677,15 @@ void Player_Process(int side){
     char input[10];
     scanf("%s", input);
     if(Check_If_Permitted_Move(input, side)){
+        //歩詰めの場合
+        if(input[2]=='F' && input[3]=='U'){
+            if(isFudume(input, side)){
+                if(First_Player<=1) printf("You Lose\n");
+                else printf("%s負け\n", (side ? "後手" : "先手"));
+                exit(0);
+            }
+        }
+        
         if(is_Put_Instruction(input)){
             char koma_side, koma_name;
             if(input[2]=='H' && input[3]=='I') koma_name='H';
@@ -344,7 +739,8 @@ void Player_Process(int side){
         }
     }
     else{
-        printf("You Lose\n");
+        if(First_Player<=1) printf("You Lose\n");
+        else printf("%s負け\n", (side ? "後手" : "先手"));
         exit(0);
     }
     return;
@@ -353,7 +749,15 @@ void Player_Process(int side){
 //AIの手番の処理
 void AI_Process(int side){
     char* input=ALPHA_BETA_FUNC_NAME(side);
+    printf("%s\n", input);
     if(Check_If_Permitted_Move(input, side)){
+        //歩詰めの場合
+        if(input[2]=='F' && input[3]=='U'){
+            if(isFudume(input, side)){
+                printf("\nError: Invalid Move by AI\n");
+            }
+        }
+        
         if(is_Put_Instruction(input)){
             char koma_side, koma_name;
             if(input[2]=='H' && input[3]=='I') koma_name='H';
@@ -414,26 +818,107 @@ void AI_Process(int side){
 
 //メイン関数
 int main(void){
-
+    //今の盤面になった回数を保持する変数
+    int Num_This_Board=Process_Sen_Nichi_Te(1, 0);
     while(1){
         //先手の手番
         if(Display_Board_Enabled) Display_Board(0);
         if(First_Player==0 || First_Player==2){
             Player_Process(0);
+            if(isOte(1)){
+                if(Display_Board_Enabled) Display_Board(1);
+                if(First_Player==0) printf("You Lose\n");
+                else printf("先手負け\n");
+                return 0;
+            }
         }
         else{
             AI_Process(0);
+            if(isOte(1)){
+                if(Display_Board_Enabled) Display_Board(1);
+                if(First_Player==1) printf("You Win\n");
+                else printf("先手勝ち\n");
+                return 0;
+            }
+        }
+        Num_This_Board=Process_Sen_Nichi_Te(1, 1);
+        if(isTsumi(1)){
+            //打った結果相手が詰んだ
+            if(Display_Board_Enabled) Display_Board(1);
+            if(First_Player==0) printf("You Win\n");
+            else if(First_Player==1) printf("You Lose\n");
+            else printf("先手勝ち\n");
+            return 0;
+        }
+        if(Num_This_Board>=4){
+            if(Display_Board_Enabled) Display_Board(1);
+            //王手千日手は王手をかけている側が負け
+            if(isOte(1)){
+                if(First_Player==0) printf("You Lose\n");
+                else if(First_Player==1) printf("You Win\n");
+                else printf("先手負け\n");
+                return 0;
+            }
+            //通常の千日手は後手勝ち
+            if(First_Player==0) printf("You Lose\n");
+            else if(First_Player==1) printf("You Win\n");
+            else printf("後手勝ち\n");
+            return 0;
         }
         Num_Moves++;
+        if(Num_Moves>=150){
+            printf("Draw\n");
+            return 0;
+        }
         //後手の手番
         if(Display_Board_Enabled) Display_Board(1);
         if(First_Player==1 || First_Player==2){
             Player_Process(1);
+            if(isOte(0)){
+                if(Display_Board_Enabled) Display_Board(0);
+                if(First_Player==1) printf("You Lose\n");
+                else printf("後手負け\n");
+                return 0;
+            }
         }
         else{
             AI_Process(1);
+            if(isOte(0)){
+                if(Display_Board_Enabled) Display_Board(0);
+                if(First_Player==0) printf("You Win\n");
+                else printf("先手勝ち\n");
+                return 0;
+            }
+        }
+        Num_This_Board=Process_Sen_Nichi_Te(1, 0);
+        if(isTsumi(0)){
+            //打った結果相手が詰んだ
+            if(Display_Board_Enabled) Display_Board(0);
+            if(First_Player==0) printf("You Lose\n");
+            else if(First_Player==1) printf("You Win\n");
+            else printf("後手勝ち\n");
+            return 0;
+        }
+        if(Num_This_Board>=4){
+            if(Display_Board_Enabled) Display_Board(0);
+            //王手千日手は王手をかけている側が負け
+            if(isOte(1)){
+                if(First_Player==0) printf("You Win\n");
+                else if(First_Player==1) printf("You Lose\n");
+                else printf("後手負け\n");
+                return 0;
+            }
+            //通常の千日手は後手勝ち
+            if(First_Player==0) printf("You Lose\n");
+            else if(First_Player==1)  printf("You Win\n");
+            else printf("後手勝ち\n");
+            return 0;
         }
         Num_Moves++;
+        if(Num_Moves>=150){
+            printf("Draw\n");
+            return 0;
+        }
         //break; //for debug
     }
     return 0;
@@ -441,10 +926,146 @@ int main(void){
 
 
 
+//千日手の処理のためにAVL木を使っています。
+int algebric_max_of_2_value(int a, int b){ return (a>b ? a : b);}
 
+//2つの盤面が等しい場合は0、1つ目のほうが適当な全順序で大きい場合は1、小さい場合は-1を返す関数。
+int AVL_TREE_is_Larger_Index_Board(char key_to_be_found[6][5][2],char key_here[6][5][2]){
+    int i=0, j=0;
+    for(i=0; i<6; i++){
+        for(j=0; j<5; j++){
+            if(key_to_be_found[i][j][0]>key_here[i][j][0]) return 1;
+            if(key_to_be_found[i][j][0]<key_here[i][j][0]) return -1;
+            if(key_to_be_found[i][j][1]>key_here[i][j][1]) return 1;
+            if(key_to_be_found[i][j][1]<key_here[i][j][1]) return -1;
+        }
+    }
+    return 0;
+}
 
+void AVL_TREE_init_node(AVL_TREE_Node* n){
+    n->left=NULL;
+    n->right=NULL;
+    n->height=1;
+    n->balance=0;
+}
 
+void AVL_TREE_bal_cal(AVL_TREE_Node* n){
+    if(n->right==NULL){
+        if(n->left==NULL){
+            n->balance=0;
+            n->height=1;
+        }
+        else{
+            n->balance=n->left->height;
+            n->height=1+n->left->height;
+        }
+    }
+    else{
+        if(n->left==NULL){
+            n->balance=-(n->right->height);
+            n->height=1+n->right->height;
+        }
+        else{
+            n->balance=(n->left->height)-(n->right->height);
+            n->height=1+algebric_max_of_2_value(n->left->height, n->right->height);
+        }
+    }
+}
 
+void AVL_TREE_set_data(AVL_TREE_Node* n, char key[6][5][2], int value){
+    int i, j;
+
+    //for debug(AVL木に放り込む状態の出力)
+    //for(i=0; i<6; i++){ for(j=0; j<5; j++){
+    //    printf("%c%c ", key[i][j][0], key[i][j][1]);
+    //}printf("\n");}
+    
+    for(i=0; i<6; i++){
+        for(j=0; j<5; j++){
+            n->key[i][j][0]=key[i][j][0];
+            n->key[i][j][1]=key[i][j][1];
+        }
+    }
+    n->value=value;
+}
+
+int AVL_TREE_search(AVL_TREE_Node* n, char key[][5][2]){
+    int i, j;
+    
+    if(n==NULL) return -1;
+    
+    
+    int comp_value=AVL_TREE_is_Larger_Index_Board(key,n->key);
+    if(comp_value==1){
+        return AVL_TREE_search(n->right, key);
+    }
+    else if(comp_value==-1){
+        return AVL_TREE_search(n->left, key);
+    }
+    else{
+        return n->value;
+    }
+}
+
+AVL_TREE_Node* AVL_TREE_insert(AVL_TREE_Node* n, char key[6][5][2], int value, int balancing){
+    if(n==NULL){
+        AVL_TREE_Node* newnode = calloc(1, sizeof(AVL_TREE_Node));
+        AVL_TREE_init_node(newnode);
+        AVL_TREE_set_data(newnode, key, value);
+        return newnode;
+    }
+    int comp_value=AVL_TREE_is_Larger_Index_Board(key,n->key);
+    if(comp_value==0){
+        AVL_TREE_set_data(n, key, value);
+        return n;
+    }
+    if(comp_value==1) n->right=AVL_TREE_insert(n->right, key, value, balancing);
+    else n->left=AVL_TREE_insert(n->left, key, value, balancing);
+    if(balancing==0) return n;
+    AVL_TREE_bal_cal(n);
+    return AVL_TREE_balancize(n);
+}
+
+AVL_TREE_Node* AVL_TREE_balancize(AVL_TREE_Node* n){
+    //printf("%d\n", n->balance);
+    //Print4Debug(n, 0);
+
+    if((n->balance)>1){
+        if(n->left->balance>=0) return AVL_TREE_rotate(n, 1);
+        else{
+            n->left=AVL_TREE_rotate(n->left, 0);
+            return AVL_TREE_rotate(n, 1);
+        }
+    }
+    else{
+        if((n->balance)<-1){
+            if(n->right->balance<=0) return AVL_TREE_rotate(n, 0);
+            else{
+                n->right=AVL_TREE_rotate(n->right, 1);
+                return AVL_TREE_rotate(n, 0);
+            }
+        }
+        else return n;
+    }
+}
+
+AVL_TREE_Node* AVL_TREE_rotate(AVL_TREE_Node* n, int isRight){
+    AVL_TREE_Node* newn;
+    if(isRight==0){
+        newn=n->right;
+        n->right=newn->left;
+        newn->left=n;
+    }
+    else{
+        newn=n->left;
+        n->left=newn->right;
+        newn->right=n;
+    }
+    AVL_TREE_bal_cal(n);
+    AVL_TREE_bal_cal(newn);
+    return newn;
+}
 
 
 //以下は使っていないコードの保管場所です(無視してください。)
