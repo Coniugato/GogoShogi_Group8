@@ -853,7 +853,7 @@ int main(void){
         if(Num_This_Board>=4){
             if(Display_Board_Enabled) Display_Board(1);
             //王手千日手は王手をかけている側が負け
-            if(isOte(1)){
+            if(isOte(0)){
                 if(First_Player==0) printf("You Lose\n");
                 else if(First_Player==1) printf("You Win\n");
                 else printf("先手負け\n");
