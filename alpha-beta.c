@@ -972,6 +972,48 @@ void return_put_instruction(char* inst, int y, int x, char koma_name){
     inst[4] = '\0';
 }
 
+//引数の盤面においてinputの手が反則かどうかを判断する
+//0:反則じゃない　1:反則
+int Check_Faul(char check_board[5][5][2], char check_possessed[2][12], int side, char* input){
+    int ret = 0;
+    char now_board[5][5][2];
+    char now_possessed[2][12];
+    //一旦グローバル変数を変更
+    for(int i = 0; i < 5; i++){
+        for(int j = 0; j < 5; j++){
+            for(int k = 0; k < 2; k++){
+                now_board[i][j][k] = board[i][j][k];
+                board[i][j][k] = check_board[i][j][k];
+            }
+        }
+    }
+    for(int i = 0; i < 2; i++){
+        for(int j = 0; j < 12; j++){
+            now_possessed[i][j] = possessed[i][j];
+            possessed[i][j] = check_possessed[i][j];
+        }
+    }
+
+    if(is_Nifu(input, side)) ret = 1;
+    else if(Process_Sen_Nichi_Te(0, side) >= 4) ret = 1;
+    else if(isFudume(input, side)) ret = 1;
+
+    //グローバル変数を元に戻す
+    for(int i = 0; i < 5; i++){
+        for(int j = 0; j < 5; j++){
+            for(int k = 0; k < 2; k++){
+                board[i][j][k] = now_board[i][j][k];
+            }
+        }
+    }
+    for(int i = 0; i < 2; i++){
+        for(int j = 0; j < 12; j++){
+            possessed[i][j] = now_possessed[i][j];
+        }
+    }
+    return ret;
+}
+
 //盤面の状態(board,possessed,side)から、次うてる手の数を返す関数
 //次うてる手の命令は引数に与えた配列の中に入れられる
 //まだ反則手(二歩、打ち歩詰め等)は判定できていない
@@ -987,11 +1029,15 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                             if(i > 0 && board[i - 1][j][1] != side_char){
                                 if(i == 1){
                                     return_move_instruction(instruction_list[instruction_index], i, j, i-1, j, 1);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                 }
                                 else{
                                     return_move_instruction(instruction_list[instruction_index], i, j, i-1, j, 0);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                 }
                             }
                         }
@@ -999,11 +1045,15 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                             if(i < 4 && board[i + 1][j][1] != side_char){
                                 if(i == 3){
                                     return_move_instruction(instruction_list[instruction_index], i, j, i+1, j, 1);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                 }
                                 else{
                                     return_move_instruction(instruction_list[instruction_index], i, j, i+1, j, 0);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                 }
                             }
                         }
@@ -1017,7 +1067,9 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                                 if(i + k < 0 || i + k > 4 || j + l < 0 || j + l > 4) continue;
                                 if(board[i+k][j+l][1] != side_char){
                                     return_move_instruction(instruction_list[instruction_index], i, j, i+k, j+l, 0);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                 }
                             }
                         }
@@ -1029,10 +1081,14 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                                     if(j + l < 0 || j + l > 4) continue;
                                     if(board[i - 1][j + l][1] == side_char) continue;
                                     return_move_instruction(instruction_list[instruction_index], i, j, i-1, j+l, 0);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                     if(i - 1 == 0){
                                         return_move_instruction(instruction_list[instruction_index], i, j, i-1, j+l, 1);
-                                        instruction_index++;
+                                        if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                            instruction_index++;
+                                        }
                                     }
                                 }
                             }
@@ -1042,10 +1098,14 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                                     if(j + l < 0 || j + l > 4) continue;
                                     if(board[i + 1][j + l][1] == side_char) continue;
                                     return_move_instruction(instruction_list[instruction_index], i, j, i+1, j+l, 0);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                     if(i == 0){
                                         return_move_instruction(instruction_list[instruction_index], i, j, i+1, j+l, 1);
-                                        instruction_index++;
+                                        if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                            instruction_index++;
+                                        }
                                     }
                                 }
                             }
@@ -1056,10 +1116,14 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                                     if(j + l < 0 || j + l > 4) continue;
                                     if(board[i + 1][j + l][1] == side_char) continue;
                                     return_move_instruction(instruction_list[instruction_index], i, j, i+1, j+l, 0);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                     if(i + 1 == 4){
                                         return_move_instruction(instruction_list[instruction_index], i, j, i+1, j+l, 1);
-                                        instruction_index++;
+                                        if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                            instruction_index++;
+                                        }
                                     }
                                 }
                             }
@@ -1069,10 +1133,14 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                                     if(j + l < 0 || j + l > 4) continue;
                                     if(board[i - 1][j + l][1] == side_char) continue;
                                     return_move_instruction(instruction_list[instruction_index], i, j, i-1, j+l, 0);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                     if(i == 4){
                                         return_move_instruction(instruction_list[instruction_index], i, j, i-1, j+l, 1);
-                                        instruction_index++;
+                                        if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                            instruction_index++;
+                                        }
                                     }
                                 }
                             }
@@ -1090,13 +1158,17 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                                     if(i + k < 0 || i + k > 4 || j + l < 0 || j + l > 4) continue;
                                     if(board[i+k][j+l][1] != side_char){
                                         return_move_instruction(instruction_list[instruction_index], i, j, i+k, j+l, 0);
-                                        instruction_index++;
+                                        if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                            instruction_index++;
+                                        }
                                     }
                                 }
                             }
                             if(i < 3 && board[i+1][j][1] != side_char){
                                 return_move_instruction(instruction_list[instruction_index], i, j, i+1, j, 0);
-                                instruction_index++;
+                                if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                    instruction_index++;
+                                }
                             }
                         }
                         else{
@@ -1106,13 +1178,17 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                                     if(i + k < 0 || i + k > 4 || j + l < 0 || j + l > 4) continue;
                                     if(board[i+k][j+l][1] != side_char){
                                         return_move_instruction(instruction_list[instruction_index], i, j, i+k, j+l, 0);
-                                        instruction_index++;
+                                        if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                            instruction_index++;
+                                        }
                                     }
                                 }
                             }
                             if(i > 1 && board[i-1][j][1] != side_char){
                                 return_move_instruction(instruction_list[instruction_index], i, j, i-1, j, 0);
-                                instruction_index++;
+                                if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                    instruction_index++;
+                                }
                             }
                         }
                         break;
@@ -1123,7 +1199,9 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                                 if(i + k < 0 || i + k > 4 || j + l < 0 || j + l > 4) continue;
                                 if(board[i+k][j+l][1] != side_char){
                                     return_move_instruction(instruction_list[instruction_index], i, j, i+k, j+l, 0);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                 }
                             }
                         }
@@ -1134,18 +1212,26 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                             }
                             else if(board[k][j][1] != 'x'){
                                 return_move_instruction(instruction_list[instruction_index], i, j, k, j, 0);
-                                instruction_index++;
+                                if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                    instruction_index++;
+                                }
                                 if(((side == 0 && i == 0) || (side == 1 && k == 4)) && board[i][j][0] == 'H'){
                                     return_move_instruction(instruction_list[instruction_index], i, j, k, j, 1);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                 }
                                 break;
                             }
                             return_move_instruction(instruction_list[instruction_index], i, j, k, j, 0);
-                            instruction_index++;
+                            if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                instruction_index++;
+                            }
                             if(((side == 0 && i == 0) || (side == 1 && k == 4)) && board[i][j][0] == 'H'){
                                 return_move_instruction(instruction_list[instruction_index], i, j, k, j, 1);
-                                instruction_index++;
+                                if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                    instruction_index++;
+                                }
                             }
                         }
                         for(int k = i - 1; k >= 0; k--){
@@ -1154,18 +1240,26 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                             }
                             else if(board[k][j][1] != 'x'){
                                 return_move_instruction(instruction_list[instruction_index], i, j, k, j, 0);
-                                instruction_index++;
+                                if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                    instruction_index++;
+                                }
                                 if(((side == 0 && k == 0) || (side == 1 && i == 4)) && board[i][j][0] == 'H'){
                                     return_move_instruction(instruction_list[instruction_index], i, j, k, j, 1);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                 }
                                 break;
                             }
                             return_move_instruction(instruction_list[instruction_index], i, j, k, j, 0);
-                            instruction_index++;
+                            if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                instruction_index++;
+                            }
                             if(((side == 0 && k == 0) || (side == 1 && i == 4)) && board[i][j][0] == 'H'){
                                 return_move_instruction(instruction_list[instruction_index], i, j, k, j, 1);
-                                instruction_index++;
+                                if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                    instruction_index++;
+                                }
                             }
                         }
                         for(int l = j + 1; l < 5; l++){
@@ -1174,18 +1268,26 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                             }
                             else if(board[i][l][1] != 'x'){
                                 return_move_instruction(instruction_list[instruction_index], i, j, i, l, 0);
-                                instruction_index++;
+                                if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                    instruction_index++;
+                                }
                                 if(((side == 0 && i == 0) || (side == 1 && i == 4)) && board[i][j][0] == 'H'){
                                     return_move_instruction(instruction_list[instruction_index], i, j, i, l, 1);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                 }
                                 break;
                             }
                             return_move_instruction(instruction_list[instruction_index], i, j, i, l, 0);
-                            instruction_index++;
+                            if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                instruction_index++;
+                            }
                             if(((side == 0 && i == 0) || (side == 1 && i == 4)) && board[i][j][0] == 'H'){
                                 return_move_instruction(instruction_list[instruction_index], i, j, i, l, 1);
-                                instruction_index++;
+                                if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                    instruction_index++;
+                                }
                             }
                         }
                         for(int l = j - 1; l > 0; l--){
@@ -1194,18 +1296,26 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                             }
                             else if(board[i][l][1] != 'x'){
                                 return_move_instruction(instruction_list[instruction_index], i, j, i, l, 0);
-                                instruction_index++;
+                                if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                    instruction_index++;
+                                }
                                 if(((side == 0 && i == 0) || (side == 1 && i == 4)) && board[i][j][0] == 'H'){
                                     return_move_instruction(instruction_list[instruction_index], i, j, i, l, 1);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                 }
                                 break;
                             }
                             return_move_instruction(instruction_list[instruction_index], i, j, i, l, 0);
-                            instruction_index++;
+                            if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                instruction_index++;
+                            }
                             if(((side == 0 && i == 0) || (side == 1 && i == 4)) && board[i][j][0] == 'H'){
                                 return_move_instruction(instruction_list[instruction_index], i, j, i, l, 1);
-                                instruction_index++;
+                                if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                    instruction_index++;
+                                }
                             }
                         }
                         break;
@@ -1216,7 +1326,9 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                                 if(i + k < 0 || i + k > 4 || j + l < 0 || j + l > 4) continue;
                                 if(board[i+k][j+l][1] != side_char){
                                     return_move_instruction(instruction_list[instruction_index], i, j, i+k, j+l, 0);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                 }
                             }
                         }
@@ -1228,18 +1340,26 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                             }
                             else if(board[i+k][j+k][1] != 'x'){
                                 return_move_instruction(instruction_list[instruction_index], i, j, i+k, j+k, 0);
-                                instruction_index++;
+                                if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                    instruction_index++;
+                                }
                                 if(((side == 0 && i == 0) || (side == 1 && i+k == 4)) && board[i][j][0] == 'A'){
                                     return_move_instruction(instruction_list[instruction_index], i, j, i+k, j+k, 1);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                 }
                                 break;
                             }
                             return_move_instruction(instruction_list[instruction_index], i, j, i+k, j+k, 0);
-                            instruction_index++;
+                            if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                instruction_index++;
+                            }
                             if(((side == 0 && i == 0) || (side == 1 && i+k == 4)) && board[i][j][0] == 'A'){
                                 return_move_instruction(instruction_list[instruction_index], i, j, i+k, j+k, 1);
-                                instruction_index++;
+                                if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                    instruction_index++;
+                                }
                             }
                         }
                         for(int k = 1; k < 5; k++){
@@ -1249,18 +1369,26 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                             }
                             else if(board[i-k][j+k][1] != 'x'){
                                 return_move_instruction(instruction_list[instruction_index], i, j, i-k, j+k, 0);
-                                instruction_index++;
+                                if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                    instruction_index++;
+                                }
                                 if(((side == 0 && i-k == 0) || (side == 1 && i == 4)) && board[i][j][0] == 'A'){
                                     return_move_instruction(instruction_list[instruction_index], i, j, i-k, j+k, 1);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                 }
                                 break;
                             }
                             return_move_instruction(instruction_list[instruction_index], i, j, i-k, j+k, 0);
-                            instruction_index++;
+                            if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                instruction_index++;
+                            }
                             if(((side == 0 && i-k == 0) || (side == 1 && i == 4)) && board[i][j][0] == 'A'){
                                 return_move_instruction(instruction_list[instruction_index], i, j, i-k, j+k, 1);
-                                instruction_index++;
+                                if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                    instruction_index++;
+                                }
                             }
                         }
                         for(int k = 1; k < 5; k++){
@@ -1270,18 +1398,26 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                             }
                             else if(board[i+k][j-k][1] != 'x'){
                                 return_move_instruction(instruction_list[instruction_index], i, j, i+k, j-k, 0);
-                                instruction_index++;
+                                if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                    instruction_index++;
+                                }
                                 if(((side == 0 && i == 0) || (side == 1 && i+k == 4)) && board[i][j][0] == 'A'){
                                     return_move_instruction(instruction_list[instruction_index], i, j, i+k, j-k, 1);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                 }
                                 break;
                             }
                             return_move_instruction(instruction_list[instruction_index], i, j, i+k, j-k, 0);
-                            instruction_index++;
+                            if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                instruction_index++;
+                            }
                             if(((side == 0 && i == 0) || (side == 1 && i+k == 4)) && board[i][j][0] == 'A'){
                                 return_move_instruction(instruction_list[instruction_index], i, j, i+k, j-k, 1);
-                                instruction_index++;
+                                if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                    instruction_index++;
+                                }
                             }
                         }
                         for(int k = 1; k < 5; k++){
@@ -1291,18 +1427,26 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                             }
                             else if(board[i-k][j-k][1] != 'x'){
                                 return_move_instruction(instruction_list[instruction_index], i, j, i-k, j-k, 0);
-                                instruction_index++;
+                                if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                    instruction_index++;
+                                }
                                 if(((side == 0 && i-k == 0) || (side == 1 && i == 4)) && board[i][j][0] == 'A'){
                                     return_move_instruction(instruction_list[instruction_index], i, j, i-k, j-k, 1);
-                                    instruction_index++;
+                                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                        instruction_index++;
+                                    }
                                 }
                                 break;
                             }
                             return_move_instruction(instruction_list[instruction_index], i, j, i-k, j-k, 0);
-                            instruction_index++;
+                            if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                instruction_index++;
+                            }
                             if(((side == 0 && i-k == 0) || (side == 1 && i == 4)) && board[i][j][0] == 'A'){
                                 return_move_instruction(instruction_list[instruction_index], i, j, i-k, j-k, 1);
-                                instruction_index++;
+                                if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                                    instruction_index++;
+                                }
                             }
                         }
                         break;
@@ -1315,7 +1459,9 @@ int search_Next(char board[5][5][2], char possessed[2][12], int side, char instr
                     if(((side == 0 && i == 0) || (side == 1 && i == 4)) && possessed[side][k] == 'F') continue;//歩は相手の方の端には打てない
 
                     return_put_instruction(instruction_list[instruction_index], i, j, possessed[side][k]);
-                    instruction_index++;
+                    if(!Check_Faul(board, possessed, side, instruction_list[instruction_index])){
+                        instruction_index++;
+                    }
                 }
             }
         }
