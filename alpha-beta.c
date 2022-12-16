@@ -996,7 +996,9 @@ int Check_Faul(char check_board[5][5][2], char check_possessed[2][12], int side,
 
     if(is_Nifu(input, side)) ret = 1;
     else if(Process_Sen_Nichi_Te(0, side) >= 4) ret = 1;
-    else if(isFudume(input, side)) ret = 1;
+    else if(input[2] == 'F' && input[3] == 'U'){
+        if(isFudume(input, side)) ret = 1;
+    }
 
     //グローバル変数を元に戻す
     for(int i = 0; i < 5; i++){
@@ -1532,6 +1534,16 @@ int evaluate_Fanction(char board[5][5][2], char possessed[2][12], int side, int 
 
 //アルファベータ法をする関数
 int Alpha_Beta_algorithm(char board[5][5][2], char possessed[2][12], int side, int my_side, int depth, int alpha, int beta){
+    for(int i = 0; i < 2; i++){
+        for(int j = 0; j < 12; j++){
+            if(possessed[i][j] == 'O' || possessed[i][j] == 'G'){ //王か玉が取られてたら探索終わり
+                depth = 0;
+                break;
+            }else if(possessed[i][j] == 'x'){
+                break;
+            }
+        }
+    }
     if(depth == 0){
         return evaluate_Fanction(board, possessed, side, my_side);
     }
