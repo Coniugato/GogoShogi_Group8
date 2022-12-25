@@ -218,9 +218,10 @@ int intended_Nari(char* instruction){
 }
 
 //side側が王手をしているかを判定する関数
+//王や玉がいない盤面の場合seg-faultせず-1を返すように変更
 int isOte(int side){
-    int i, j, gx, gy;
-    
+    int i, j, gx=-1, gy;
+
     for(i=0; i<5; i++){
         for(j=0; j<5; j++){
             if(side==0 && board[i][j][0]=='G'){
@@ -233,7 +234,7 @@ int isOte(int side){
             }
         }
     }
-    
+    if(gx==-1){ return -1;}
     for(i=0; i<5; i++){
         for(j=0; j<5; j++){
             
@@ -279,11 +280,13 @@ int Unmovable_Koma_Moved(char* input, int side){
 }
 
 
-
+//こまを打つ際に正常に判定できていなかったため修正
+//千日手処理も正常に判定できていなかったため修正
 //side側が詰んでいるかを判定する関数
 int isTsumi(int side){
     int Remove_Sen_Nichite=1; //千日手により負ける場合を詰みとみなすか
     if(!isOte(1-side)) return 0;
+    if(isOte(side)) return 0;
     int i, j, Tsumiflag=1;
     //駒を動かす場合
     for(i=0; i<5; i++) for(j=0; j<5; j++){
@@ -327,6 +330,16 @@ int isTsumi(int side){
                 //    Display_Board(side);
                 //}
                 
+                if(Process_Sen_Nichi_Te(0,1-side)+1>=4){
+                    //とった手が千日手
+                    if(Remove_Sen_Nichite){
+                        //自分が先手なら千日手で負けてしまう
+                        if(side==0){Tsumiflag=1;}
+                    }
+                    //王手千日手
+                    if(isOte(side)){Tsumiflag=1;}
+                }
+                
                 board[i][j][0]=board[k][l][0];
                 board[i][j][1]=board[k][l][1];
                 if(koma_got==-1){
@@ -341,15 +354,6 @@ int isTsumi(int side){
                 }
                 
                 if(!Tsumiflag){
-                    if(Process_Sen_Nichi_Te(0,1-side)+1>=4){
-                        //とった手が千日手
-                        if(Remove_Sen_Nichite){
-                            //自分が先手なら千日手で負けてしまう
-                            if(side==0){Tsumiflag=0; continue;}
-                        }
-                        //王手千日手
-                        if(isOte(side)){Tsumiflag=0; continue;}
-                    }
                     return 0;
                 }
             }
@@ -378,6 +382,16 @@ int isTsumi(int side){
                 
                 if(!isOte(1-side)) Tsumiflag=0;
                 
+                if(Process_Sen_Nichi_Te(0,1-side)+1>=4){
+                    //とった手が千日手
+                    if(Remove_Sen_Nichite){
+                        //自分が先手なら千日手で負けてしまう
+                        if(side==0){Tsumiflag=1;}
+                    }
+                    //王手千日手
+                    if(isOte(side)){Tsumiflag=1;}
+                }
+                
                 board[i][j][0]=Inverse_Process_Nari(board[k][l][0]);
                 board[i][j][1]=board[k][l][1];
                 if(koma_got==-1){
@@ -391,15 +405,6 @@ int isTsumi(int side){
                     possessed[side][koma_got]='x';
                 }
                 if(!Tsumiflag){
-                    if(Process_Sen_Nichi_Te(0,1-side)+1>=4){
-                        //とった手が千日手
-                        if(Remove_Sen_Nichite){
-                            //自分が先手なら千日手で負けてしまう
-                            if(side==0){Tsumiflag=0; continue;}
-                        }
-                        //王手千日手
-                        if(isOte(side)){Tsumiflag=0; continue;}
-                    }
                     return 0;
                 }
             }
@@ -441,15 +446,15 @@ int isTsumi(int side){
             char koma_name='x';
             switch(k){
                 case 0:
-                    order[3]='H'; order[4]='I'; koma_name='H'; break;
+                    order[2]='H'; order[3]='I'; koma_name='H'; break;
                 case 1:
-                    order[3]='K'; order[4]='K'; koma_name='A'; break;
+                    order[2]='K'; order[3]='K'; koma_name='A'; break;
                 case 2:
-                    order[3]='G'; order[4]='I'; koma_name='S'; break;
+                    order[2]='G'; order[3]='I'; koma_name='S'; break;
                 case 3:
-                    order[3]='K'; order[4]='I'; koma_name='K'; break;
+                    order[2]='K'; order[3]='I'; koma_name='K'; break;
                 case 4:
-                    order[3]='F'; order[4]='U'; koma_name='F'; break;
+                    order[2]='F'; order[3]='U'; koma_name='F'; break;
                 default: break;
             }
             if(Check_If_Permitted_Move(order, side)){
@@ -460,14 +465,25 @@ int isTsumi(int side){
                     possessed[side][Break_Flag-1]='x';
                 }
                 else possessed[side][IfPossess[k]]='x';
+                
+                if(isOte(1-side)) Tsumiflag=0;
+                
                 if(koma_name=='F'){
                     if(isTsumi(1-side)){
                         //打ち歩詰めの場合
-                        continue;
+                        Tsumiflag=1;
                     }
                 }
                 
-                if(isOte(1-side)) Tsumiflag=0;
+                if(Process_Sen_Nichi_Te(0,1-side)+1>=4){
+                    //とった手が千日手
+                    if(Remove_Sen_Nichite){
+                        //自分が先手なら千日手で負けてしまう
+                        if(side==0){Tsumiflag=1;}
+                    }
+                    //王手千日手
+                    if(isOte(side)){Tsumiflag=1;}
+                }
                 
                 if(Break_Flag>1 && IfPossess[k]+1<Break_Flag){
                     possessed[side][Break_Flag-1]=possessed[side][IfPossess[k]];
@@ -478,15 +494,6 @@ int isTsumi(int side){
                 board[i][j][1]='x';
                 
                 if(!Tsumiflag){
-                    if(Process_Sen_Nichi_Te(0,1-side)+1>=4){
-                        //とった手が千日手
-                        if(Remove_Sen_Nichite){
-                            //自分が先手なら千日手で負けてしまう
-                            if(side==0){Tsumiflag=0; continue;}
-                        }
-                        //王手千日手
-                        if(isOte(side)){Tsumiflag=0; continue;}
-                    }
                     return 0;
                 }
             }
